@@ -1,0 +1,15 @@
+
+
+| 页面 | 路由 |
+|---|---|
+| 登录 | /login |
+| 工作台 | /dashboard |
+| 单据列表 | /documents |
+| 新建单据 | /documents/new |
+| 单据详情（6 Tab） | /documents/:id |
+| 风险分析中心 | /risks |
+| 审批中心 | /approvals |
+| 报告中心 | /reports |
+| 报告详情 | /reports/:docId |
+| 审计日志 | /logs |
+| 系统管理 | /admin/* |

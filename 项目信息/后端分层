@@ -1,0 +1,13 @@
+按 Spec 与结构图，后端分层 7 层（Java 17 + Spring Boot 3）：
+
+| 层 | 职责 | 依据 |
+|---|---|---|
+| 1 网关/认证层 | Spring Security + JWT + RBAC，登录锁定，数据权限校验 | 结构图 GATE |
+| 2 控制器层 Controller | 6 个：Auth / Document / Risk / Approval / Report / Admin | 结构图 CTRL |
+| 3 服务层 Service | 单据/审批/报告/权限/规则配置，事务边界在此 | Spec 8.2 |
+| 4 状态机服务 | draft → submitted → analyzing → pending_approval → ... 合法迁移校验 | 结构图 SM |
+| 5 异步任务层 | RocketMQ：附件解析（OCR+字段抽取）、风险分析（规则引擎） | 结构图 MQ/TASKS |
+| 6 数据访问层 Mapper | MyBatis-Plus | Spec 8.2 |
+| 7 存储层 | MySQL 8（业务数据）、MinIO（附件）、Redis（会话/缓存） | 结构图 DB/MINIO/REDIS |
+
+核心是 3 层经典结构：**controller → service → mapper**（Spec 8.2 原文），其余 4 层是横切/支撑设施。领域事件（提交、分析完成、审批流转）走 MQ 解耦，不进 service 直连。

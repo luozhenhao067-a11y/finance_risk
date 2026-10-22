@@ -1,0 +1,2605 @@
+{
+  "database": "financial_risk_audit",
+  "charset": "utf8mb4",
+  "engine": "InnoDB",
+  "version": "MySQL 8.x",
+  "generated_at": "2026-10-22",
+  "purpose": "财务单据智能风险审核系统核心库。覆盖: 用户权限(RBAC)、财务单据与费用明细、附件与OCR解析、提交快照、风险规则与智能风控分析、三级审批流(部门经理审批-财务专员审核-财务经理复核)、审计日志、站内通知、审核报告、费用标准/供应商/字典配置。",
+  "table_count": 23,
+  "tables": [
+    {
+      "name": "user",
+      "comment": "用户表",
+      "function": "系统用户表。存登录账号、BCrypt密码、姓名、联系方式、部门、职位。status=1启用/0禁用。单据申请人、审批人、操作人都引用此表。种子用户11个,密码统一 Root@123456(BCrypt)。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "用户ID"
+        },
+        {
+          "name": "username",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "登录名"
+        },
+        {
+          "name": "password",
+          "type": "varchar(100)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "密码(BCrypt)"
+        },
+        {
+          "name": "real_name",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "真实姓名"
+        },
+        {
+          "name": "email",
+          "type": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "邮箱"
+        },
+        {
+          "name": "phone",
+          "type": "varchar(20)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "手机号"
+        },
+        {
+          "name": "department",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "部门"
+        },
+        {
+          "name": "position",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "职位"
+        },
+        {
+          "name": "status",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "1启用 0禁用"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "创建时间"
+        },
+        {
+          "name": "updated_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": "更新时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_username",
+          "unique": true,
+          "columns": [
+            "username"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "role",
+      "comment": "角色表",
+      "function": "角色表,RBAC。系统内置6物理角色: admin/finance_manager/finance_staff/dept_manager/employee/auditor。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "角色ID"
+        },
+        {
+          "name": "role_code",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "角色编码"
+        },
+        {
+          "name": "role_name",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "角色名称"
+        },
+        {
+          "name": "description",
+          "type": "varchar(200)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "角色描述"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_role_code",
+          "unique": true,
+          "columns": [
+            "role_code"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "permission",
+      "comment": "权限表",
+      "function": "权限表,树形结构(parent_id自引用)。perm_type: menu菜单/button按钮/api接口。perm_code如 doc:create、risk:view。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "权限ID"
+        },
+        {
+          "name": "perm_code",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "权限编码"
+        },
+        {
+          "name": "perm_name",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "权限名称"
+        },
+        {
+          "name": "perm_type",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "menu",
+          "extra": "",
+          "comment": "menu/button/api"
+        },
+        {
+          "name": "parent_id",
+          "type": "bigint unsigned",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "父权限ID"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_parent",
+          "unique": false,
+          "columns": [
+            "parent_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_perm_code",
+          "unique": true,
+          "columns": [
+            "perm_code"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "user_role",
+      "comment": "用户角色关联表",
+      "function": "用户-角色关联表,多对多,uk(user_id,role_id)。种子数据一个用户一个角色,但结构支持多角色。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "主键"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "用户ID"
+        },
+        {
+          "name": "role_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "角色ID"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "绑定时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "fk_ur_role",
+          "unique": false,
+          "columns": [
+            "role_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_user_role",
+          "unique": true,
+          "columns": [
+            "user_id",
+            "role_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "role_permission",
+      "comment": "角色权限关联表",
+      "function": "角色-权限关联表,多对多,uk(role_id,permission_id)。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "主键"
+        },
+        {
+          "name": "role_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "角色ID"
+        },
+        {
+          "name": "permission_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "权限ID"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "授权时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "fk_rp_perm",
+          "unique": false,
+          "columns": [
+            "permission_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_role_perm",
+          "unique": true,
+          "columns": [
+            "role_id",
+            "permission_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "document",
+      "comment": "单据主表",
+      "function": "财务单据主表(报销/付款申请)。doc_no规则 FYyyyyMMdd-NNN。doc_type五种: 费用报销/差旅费报销/采购付款/合同付款/借款单。状态机8态: draft草稿 -> submitted已提交 -> analyzing分析中 -> pending_approval审批中 -> (returned退回可重新提交 / rejected驳回 / approved通过 / completed完成)。version单据版本,初值1,退回重提+1,审批操作乐观锁依据。current_node当前审批节点(草稿态为NULL)。risk_level冗余整体风险等级 none/low/mid/high,risk_count冗余风险项数。delete_flag逻辑删除。total_amount=明细合计。",
+      "business_notes": [
+        "状态流转: draft --提交--> submitted --自动分析--> analyzing --分析完成--> pending_approval --三节点全通过--> approved --生成报告--> completed ; pending_approval --节点退回--> returned(修改后重新提交,version+1) ; pending_approval --驳回--> rejected(终态)",
+        "draft 状态无 approval_flow/risk_analysis/notification",
+        "returned 状态: flow.status=returned, 退回节点 task=done(action=returned), 后续节点 task=cancelled",
+        "completed 状态必有 report 一条",
+        "乐观锁: 审批/退回操作带 version,UPDATE ... WHERE id=? AND version=?,不符返回40903"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "单据ID"
+        },
+        {
+          "name": "doc_no",
+          "type": "varchar(32)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "单据编号，如FY20261021-001"
+        },
+        {
+          "name": "doc_type",
+          "type": "varchar(30)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "单据类型:travel/expense/entertainment/purchase/contract/training/meeting"
+        },
+        {
+          "name": "doc_type_name",
+          "type": "varchar(30)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "单据类型名称"
+        },
+        {
+          "name": "title",
+          "type": "varchar(200)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "单据标题"
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "MUL",
+          "default": "draft",
+          "extra": "",
+          "comment": "draft/submitted/analyzing/pending_approval/returned/rejected/approved/completed"
+        },
+        {
+          "name": "version",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "单据版本,初值1,退回重提+1,审批乐观锁依据"
+        },
+        {
+          "name": "current_node",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "当前审批节点名,draft/returned/rejected为NULL"
+        },
+        {
+          "name": "risk_level",
+          "type": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": "none",
+          "extra": "",
+          "comment": "冗余:整体风险等级 none/low/mid/high"
+        },
+        {
+          "name": "risk_count",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "冗余:风险项数量"
+        },
+        {
+          "name": "delete_flag",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "逻辑删除 0正常 1删除"
+        },
+        {
+          "name": "total_amount",
+          "type": "decimal(14,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": "单据总金额"
+        },
+        {
+          "name": "currency",
+          "type": "char(3)",
+          "nullable": false,
+          "key": "",
+          "default": "CNY",
+          "extra": "",
+          "comment": "币种"
+        },
+        {
+          "name": "applicant_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "申请人ID"
+        },
+        {
+          "name": "department",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "申请部门"
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "单据说明"
+        },
+        {
+          "name": "submit_time",
+          "type": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "提交时间"
+        },
+        {
+          "name": "finish_time",
+          "type": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "办结时间"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "创建时间"
+        },
+        {
+          "name": "updated_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "更新时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_applicant",
+          "unique": false,
+          "columns": [
+            "applicant_id"
+          ]
+        },
+        {
+          "name": "idx_status",
+          "unique": false,
+          "columns": [
+            "status"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_doc_no",
+          "unique": true,
+          "columns": [
+            "doc_no"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "document_item",
+      "comment": "单据费用明细表",
+      "function": "单据费用明细,一单1~6条。expense_type费用类型、expense_date发生日期、amount金额。amount求和=document.total_amount。invoice_no发票号(报销类 INV-8位数字)/合同号(付款类 HT-2026-4位数字),借款单无。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "明细ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "item_no",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "明细序号"
+        },
+        {
+          "name": "expense_type",
+          "type": "varchar(30)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "费用类型"
+        },
+        {
+          "name": "expense_date",
+          "type": "date",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "费用发生日期"
+        },
+        {
+          "name": "amount",
+          "type": "decimal(14,2)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "金额"
+        },
+        {
+          "name": "invoice_no",
+          "type": "varchar(32)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "发票号/合同号,报销类必填,借款单为—"
+        },
+        {
+          "name": "description",
+          "type": "varchar(255)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "费用说明"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_doc_item",
+          "unique": false,
+          "columns": [
+            "document_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "attachment",
+      "comment": "单据附件表",
+      "function": "单据附件。file_url上传路径、upload_by上传人。parse_status: parsing解析中/parsed解析成功/failed解析失败。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "附件ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "file_name",
+          "type": "varchar(255)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "文件名"
+        },
+        {
+          "name": "file_type",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "文件类型"
+        },
+        {
+          "name": "file_size",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "文件大小(KB)"
+        },
+        {
+          "name": "file_url",
+          "type": "varchar(500)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "文件路径"
+        },
+        {
+          "name": "parse_status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "parsing",
+          "extra": "",
+          "comment": "parsing/parsed/failed"
+        },
+        {
+          "name": "upload_by",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "上传人ID"
+        },
+        {
+          "name": "upload_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "上传时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "fk_att_uploader",
+          "unique": false,
+          "columns": [
+            "upload_by"
+          ]
+        },
+        {
+          "name": "idx_att_doc",
+          "unique": false,
+          "columns": [
+            "document_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "attachment_parse_result",
+      "comment": "附件解析结果表",
+      "function": "附件解析结果,每附件一条uk(attachment_id)。parse_status: parsed/failed。parse_type: ocr/structured。result_json解析出的发票/行程单/合同等结构化JSON(发票含invoice_code/invoice_no/invoice_date/amount/seller/buyer/check_status,check_status可能带WARN)。confidence置信度0~1。failed时result_json为NULL、error_msg记原因。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "解析结果ID"
+        },
+        {
+          "name": "attachment_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "附件ID"
+        },
+        {
+          "name": "parse_status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "success/failed"
+        },
+        {
+          "name": "parse_type",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "ocr/structured"
+        },
+        {
+          "name": "result_json",
+          "type": "json",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "解析结果JSON"
+        },
+        {
+          "name": "confidence",
+          "type": "decimal(5,2)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "置信度"
+        },
+        {
+          "name": "error_msg",
+          "type": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "失败原因"
+        },
+        {
+          "name": "parse_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "解析时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_parse_attachment",
+          "unique": true,
+          "columns": [
+            "attachment_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "document_snapshot",
+      "comment": "单据不可变快照表",
+      "function": "单据不可变快照表,提交时点全量快照。uk(document_id,version)。payload JSON三部分 {document, details[], attachments[]}。immutable恒为1,只读,无UPDATE接口。退回重提version+1生成新快照,旧快照保留。",
+      "business_notes": [
+        "提交时生成快照: 记录提交时点单据头、明细、附件全量数据,审批中不可变",
+        "退回重提 version+1,提交时再生成新快照,uk(document_id,version) 保证每版本一条"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "快照ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "version",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "单据版本"
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "提交时点全量快照 {document,details[],attachments[]}"
+        },
+        {
+          "name": "immutable",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "恒为1,只读不可变,无UPDATE接口"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "快照时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_snapshot_doc",
+          "unique": false,
+          "columns": [
+            "document_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_snapshot_doc_version",
+          "unique": true,
+          "columns": [
+            "document_id",
+            "version"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "risk_rule",
+      "comment": "风险规则表",
+      "function": "风险规则表,内置11条 R-01~R-10 + R-EXT。rule_type: invoice/amount/supplier/price/attachment/travel/keyword/history/budget/scope/purchase。risk_level: none/low/mid/high(R-02为blocking拦截级)。params存规则参数JSON(阈值金额/比例/天数等)。enabled=1启用。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "规则ID"
+        },
+        {
+          "name": "rule_code",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "规则编码"
+        },
+        {
+          "name": "rule_name",
+          "type": "varchar(100)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "规则名称"
+        },
+        {
+          "name": "rule_type",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "规则类型:invoice/amount/supplier/price/attachment/travel/keyword/history/budget/scope/purchase"
+        },
+        {
+          "name": "risk_level",
+          "type": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "风险等级:low/medium/high"
+        },
+        {
+          "name": "description",
+          "type": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "规则描述"
+        },
+        {
+          "name": "threshold",
+          "type": "decimal(14,2)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "阈值"
+        },
+        {
+          "name": "params",
+          "type": "varchar(200)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "规则参数(JSON或文本),如 容差 ¥0.01"
+        },
+        {
+          "name": "enabled",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "是否启用"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_rule_code",
+          "unique": true,
+          "columns": [
+            "rule_code"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "risk_analysis",
+      "comment": "风险分析主表",
+      "function": "风险分析主表,每单据每版本一条,uk(document_id, doc_version)。risk_score 0-100,risk_level low/mid/high,risk_count命中风险项数。status: pending/analyzing/completed/failed。overall_level整体等级,counts风险项计数JSON,recommendation建议: pass通过/supplement补充材料/manual_review人工复核/reject_suggest建议驳回,labels风险标签JSON,trigger_type触发方式: auto/manual,triggered_by触发人,analyzed_at分析时间。summary分析摘要。",
+      "business_notes": [
+        "risk_score=所有risk_item.score最大值(无风险项时按单据算出低分)",
+        "risk_level由最高风险项等级决定",
+        "analysis_no规则 RAyyyyMMdd-NNN",
+        "退回重提后同单据生成新版本分析,uk(document_id,doc_version) 保证每版本一条"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "分析ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "doc_version",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "对应单据版本,历史按版本保留"
+        },
+        {
+          "name": "analysis_no",
+          "type": "varchar(32)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "分析编号"
+        },
+        {
+          "name": "risk_score",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "风险评分0-100"
+        },
+        {
+          "name": "risk_level",
+          "type": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": "low",
+          "extra": "",
+          "comment": "风险等级: low/mid/high"
+        },
+        {
+          "name": "overall_level",
+          "type": "varchar(10)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "整体等级 none/low/mid/high"
+        },
+        {
+          "name": "high_count",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "高风险项数"
+        },
+        {
+          "name": "mid_count",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "中风险项数"
+        },
+        {
+          "name": "low_count",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "低风险项数"
+        },
+        {
+          "name": "recommendation",
+          "type": "varchar(20)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "pass/supplement/manual_review/reject_suggest"
+        },
+        {
+          "name": "recommendation_label",
+          "type": "varchar(20)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "建议通过/补充材料/人工复核/建议驳回"
+        },
+        {
+          "name": "trigger_type",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "auto",
+          "extra": "",
+          "comment": "auto/resubmit/manual"
+        },
+        {
+          "name": "triggered_by",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "manual 时记录触发人"
+        },
+        {
+          "name": "analyzed_at",
+          "type": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "分析完成时间"
+        },
+        {
+          "name": "risk_count",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "风险项数量"
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "pending",
+          "extra": "",
+          "comment": "pending/analyzing/completed/failed"
+        },
+        {
+          "name": "analyzer",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "分析引擎"
+        },
+        {
+          "name": "start_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "开始时间"
+        },
+        {
+          "name": "end_time",
+          "type": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "结束时间"
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "分析摘要"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_analysis_doc_version",
+          "unique": true,
+          "columns": [
+            "document_id",
+            "doc_version"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "risk_item",
+      "comment": "风险项表",
+      "function": "风险项明细,一个分析可0~N条。rule_id命中规则,risk_type规则类型,risk_desc风险描述,score分值。status: open待处理/handled已处理/dismissed已驳回。handled_by/handled_at/handle_opinion处理人/时间/意见。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "风险项ID"
+        },
+        {
+          "name": "analysis_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "分析ID"
+        },
+        {
+          "name": "rule_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "命中规则ID"
+        },
+        {
+          "name": "risk_type",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "风险类型"
+        },
+        {
+          "name": "risk_level",
+          "type": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "风险等级: low/mid/high"
+        },
+        {
+          "name": "risk_desc",
+          "type": "varchar(500)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "风险描述"
+        },
+        {
+          "name": "score",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "风险项分值"
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "open",
+          "extra": "",
+          "comment": "open/handled/dismissed"
+        },
+        {
+          "name": "handled_by",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "处理人姓名"
+        },
+        {
+          "name": "handled_at",
+          "type": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "处理时间"
+        },
+        {
+          "name": "handle_opinion",
+          "type": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "处理意见"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_ritem_analysis",
+          "unique": false,
+          "columns": [
+            "analysis_id"
+          ]
+        },
+        {
+          "name": "idx_ritem_rule",
+          "unique": false,
+          "columns": [
+            "rule_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "risk_evidence",
+      "comment": "风险证据表",
+      "function": "风险证据,每条风险项0~N条。evidence_type: attachment/parse_result/text。evidence_content证据内容,source证据来源(规则引擎/发票查验/预算系统等)。attachment_id可空(证据不总关联附件)。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "证据ID"
+        },
+        {
+          "name": "risk_item_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "风险项ID"
+        },
+        {
+          "name": "evidence_type",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "evidence类型:attachment/parse_result/text"
+        },
+        {
+          "name": "evidence_content",
+          "type": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "证据内容"
+        },
+        {
+          "name": "source",
+          "type": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "证据来源"
+        },
+        {
+          "name": "attachment_id",
+          "type": "bigint unsigned",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "关联附件ID"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "fk_evidence_att",
+          "unique": false,
+          "columns": [
+            "attachment_id"
+          ]
+        },
+        {
+          "name": "idx_evidence_item",
+          "unique": false,
+          "columns": [
+            "risk_item_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "approval_flow",
+      "comment": "审批流表",
+      "function": "审批流主表,每提交单据一条uk(document_id)。固定3节点: 1部门经理审批 -> 2财务专员审核 -> 3财务经理复核。status: running/passed/completed/rejected/returned。current_node当前节点,start_time启动(提交)时间,end_time结束时间。",
+      "business_notes": [
+        "节点顺序固定: 1部门经理审批(申请人部门经理) -> 2财务专员审核(财务部) -> 3财务经理复核(财务经理)",
+        "returned: end_time=退回时间, current_node=退回节点",
+        "rejected/passed: end_time=节点3处理时间, current_node=3"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "审批流ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "flow_name",
+          "type": "varchar(100)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "审批流名称"
+        },
+        {
+          "name": "current_node",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "当前节点"
+        },
+        {
+          "name": "total_nodes",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "3",
+          "extra": "",
+          "comment": "总节点数"
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "running",
+          "extra": "",
+          "comment": "running/completed/returned/rejected/cancelled"
+        },
+        {
+          "name": "start_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "启动时间"
+        },
+        {
+          "name": "end_time",
+          "type": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "结束时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_flow_doc",
+          "unique": true,
+          "columns": [
+            "document_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "approval_task",
+      "comment": "审批任务表",
+      "function": "审批任务,每流程3条(node_no 1/2/3),node_name节点名(部门经理审批/财务专员审核/财务经理复核)。task_status: pending待处理/done已处理/cancelled已取消(单据退回/驳回/完成后其余节点取消)。action审批动作: approved通过/returned退回/rejected驳回。approver_id审批人,assign_time任务到达时间,handle_time处理时间(未处理为NULL)。",
+      "business_notes": [
+        "assign_time规则: 节点1=submit_time; 后续节点=前一节点handle_time; 流程结束时未到达节点=submit_time(任务预建)",
+        "handle_time晚于assign_time(保证时间合理)"
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "任务ID"
+        },
+        {
+          "name": "flow_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "审批流ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "node_no",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "节点序号"
+        },
+        {
+          "name": "node_name",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "节点名称"
+        },
+        {
+          "name": "approver_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "审批人ID"
+        },
+        {
+          "name": "task_status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "pending",
+          "extra": "",
+          "comment": "pending/done/cancelled"
+        },
+        {
+          "name": "action",
+          "type": "varchar(20)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "approved/returned/rejected"
+        },
+        {
+          "name": "assign_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "任务到达时间"
+        },
+        {
+          "name": "handle_time",
+          "type": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "处理时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_task_approver",
+          "unique": false,
+          "columns": [
+            "approver_id"
+          ]
+        },
+        {
+          "name": "idx_task_doc",
+          "unique": false,
+          "columns": [
+            "document_id"
+          ]
+        },
+        {
+          "name": "idx_task_flow",
+          "unique": false,
+          "columns": [
+            "flow_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "approval_opinion",
+      "comment": "审批意见表",
+      "function": "审批意见时间线,每个已处理任务一条。action: approve同意/return退回/reject驳回(提交类 submit/resubmit/withdraw 由服务追加)。node审批节点名。create_by审批人,create_time=handle_time。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "意见ID"
+        },
+        {
+          "name": "task_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "审批任务ID"
+        },
+        {
+          "name": "opinion",
+          "type": "text",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "审批意见"
+        },
+        {
+          "name": "action",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "approve/return/reject;提交类 submit/resubmit/withdraw 由服务追加"
+        },
+        {
+          "name": "node",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "审批节点名"
+        },
+        {
+          "name": "create_by",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "审批人ID"
+        },
+        {
+          "name": "create_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "审批时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "fk_opinion_user",
+          "unique": false,
+          "columns": [
+            "create_by"
+          ]
+        },
+        {
+          "name": "idx_opinion_task",
+          "unique": false,
+          "columns": [
+            "task_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "audit_log",
+      "comment": "审计日志表",
+      "function": "审计日志,全系统操作轨迹。action中文枚举: 创建单据/提交审批/风险分析完成/审批通过/退回单据/驳回单据/审批完成/生成报告/上传附件。user_id操作人,role操作人角色(取自user.position,系统操作为\"系统\"),trace_id全链路追踪ID,user_agent客户端UA,ip来源IP。document_id可空。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "日志ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint unsigned",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "操作人ID"
+        },
+        {
+          "name": "action",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "操作类型"
+        },
+        {
+          "name": "role",
+          "type": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "操作人角色"
+        },
+        {
+          "name": "trace_id",
+          "type": "varchar(40)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "全链路追踪ID"
+        },
+        {
+          "name": "user_agent",
+          "type": "varchar(300)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "客户端UA"
+        },
+        {
+          "name": "detail",
+          "type": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "操作详情"
+        },
+        {
+          "name": "ip",
+          "type": "varchar(45)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "操作IP"
+        },
+        {
+          "name": "create_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "操作时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_log_doc",
+          "unique": false,
+          "columns": [
+            "document_id"
+          ]
+        },
+        {
+          "name": "idx_log_user",
+          "unique": false,
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "notification",
+      "comment": "通知表",
+      "function": "站内通知。type: approval审批/risk风险/system系统。is_read=0未读/1已读。审批流转(待审批提醒、退回、驳回、通过)、高风险提醒都发通知。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "通知ID"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "接收人ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "title",
+          "type": "varchar(100)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "通知标题"
+        },
+        {
+          "name": "content",
+          "type": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "通知内容"
+        },
+        {
+          "name": "type",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "approval",
+          "extra": "",
+          "comment": "approval/risk/system"
+        },
+        {
+          "name": "is_read",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "是否已读"
+        },
+        {
+          "name": "create_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "通知时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_notif_doc",
+          "unique": false,
+          "columns": [
+            "document_id"
+          ]
+        },
+        {
+          "name": "idx_notif_user",
+          "unique": false,
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "report",
+      "comment": "风险审核报告表",
+      "function": "风险审核报告,每completed单据一条uk(document_id)。report_no规则 RPT-yyyyMMdd-xxxx。risk_level与risk_analysis一致。conclusion审核结论,summary报告摘要,suggestion管理建议。content JSON八部分: conclusion/summary/overall(整体风险等级与计数)/amount_checks(单据金额与解析金额核对,含合计行)/risk_items(风险项清单)/evidences(证据)/vendor(供应商核验)/suggestion/reviews(审批意见时间线)。export_file_path导出文件路径。report_status: generated/published。create_by生成人。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "报告ID"
+        },
+        {
+          "name": "document_id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "单据ID"
+        },
+        {
+          "name": "report_no",
+          "type": "varchar(32)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "报告编号"
+        },
+        {
+          "name": "risk_score",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "风险评分"
+        },
+        {
+          "name": "risk_level",
+          "type": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": "low",
+          "extra": "",
+          "comment": "风险等级:low/medium/high"
+        },
+        {
+          "name": "conclusion",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "审核结论"
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "报告摘要"
+        },
+        {
+          "name": "suggestion",
+          "type": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "管理建议"
+        },
+        {
+          "name": "content",
+          "type": "json",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "报告8部分内容JSON"
+        },
+        {
+          "name": "export_file_path",
+          "type": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "导出文件路径"
+        },
+        {
+          "name": "report_status",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": "generated",
+          "extra": "",
+          "comment": "generated/published"
+        },
+        {
+          "name": "create_by",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "报告生成人ID"
+        },
+        {
+          "name": "create_time",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "生成时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "fk_report_user",
+          "unique": false,
+          "columns": [
+            "create_by"
+          ]
+        },
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_report_doc",
+          "unique": true,
+          "columns": [
+            "document_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "expense_standard",
+      "comment": "费用报销标准表",
+      "function": "费用报销标准表。category费用类别: 住宿/交通/餐饮。city城市(通用=不限城市)。position_level职级: 员工/经理。amount标准金额,unit计量: 晚/天/人。uk(category,city,position_level)。R-03超标判断依据。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "标准ID"
+        },
+        {
+          "name": "category",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "费用类别:住宿/交通/餐饮"
+        },
+        {
+          "name": "city",
+          "type": "varchar(30)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "城市,通用=不限城市"
+        },
+        {
+          "name": "position_level",
+          "type": "varchar(20)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "职级:员工/经理"
+        },
+        {
+          "name": "amount",
+          "type": "decimal(14,2)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "标准金额"
+        },
+        {
+          "name": "unit",
+          "type": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": "晚",
+          "extra": "",
+          "comment": "计量:晚/天/人"
+        },
+        {
+          "name": "enabled",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "是否启用"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_std",
+          "unique": true,
+          "columns": [
+            "category",
+            "city",
+            "position_level"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vendor",
+      "comment": "供应商档案表",
+      "function": "供应商档案表。name供应商名,score评分0-100,risk_level风险等级 low/mid/high,blacklist黑名单 0否/1是,established_date成立日期,note备注(经营异常等)。uk(name)。R-EXT供应商核验依据。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "供应商ID"
+        },
+        {
+          "name": "name",
+          "type": "varchar(100)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "供应商名称"
+        },
+        {
+          "name": "score",
+          "type": "int",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "评分0-100"
+        },
+        {
+          "name": "risk_level",
+          "type": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": "low",
+          "extra": "",
+          "comment": "风险等级 low/mid/high"
+        },
+        {
+          "name": "blacklist",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "黑名单 0否 1是"
+        },
+        {
+          "name": "established_date",
+          "type": "date",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "成立日期"
+        },
+        {
+          "name": "note",
+          "type": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "备注(经营异常等)"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "建档时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_vendor_name",
+          "unique": true,
+          "columns": [
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dict",
+      "comment": "字典表",
+      "function": "数据字典表。dict_type字典类型: doc_type单据类型/expense_type费用类型。dict_label显示名,dict_value存储值。scope适用单据类型,空=全部(expense_type按单据类型分组,同值可出现在多个scope,如\"设备采购\"属于费用报销和采购付款)。sort排序,enabled启用。uk(dict_type,scope,dict_value)。",
+      "business_notes": [],
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint unsigned",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": "字典ID"
+        },
+        {
+          "name": "dict_type",
+          "type": "varchar(30)",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "字典类型: doc_type/expense_type"
+        },
+        {
+          "name": "dict_label",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "显示名"
+        },
+        {
+          "name": "dict_value",
+          "type": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "存储值"
+        },
+        {
+          "name": "scope",
+          "type": "varchar(30)",
+          "nullable": false,
+          "key": "",
+          "default": "",
+          "extra": "",
+          "comment": "适用单据类型,空=全部"
+        },
+        {
+          "name": "sort",
+          "type": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "排序"
+        },
+        {
+          "name": "enabled",
+          "type": "tinyint",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "是否启用"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": "创建时间"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "unique": true,
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uk_dict",
+          "unique": true,
+          "columns": [
+            "dict_type",
+            "scope",
+            "dict_value"
+          ]
+        }
+      ]
+    }
+  ]
+}
