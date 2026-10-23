@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ShieldCheck, User, Lock, Check, ChevronDown } from 'lucide-vue-next'
 import { useAppStore } from '../stores/appStore'
 import { pushToast } from '../composables/useToast'
+import { USE_MOCK } from '../api/client'
+import { applyLogin, syncDocuments, syncStats } from '../api/realSync'
 
 const router = useRouter()
 const route = useRoute()
@@ -17,11 +19,30 @@ const password = ref('')
 const remember = ref(Boolean(state.rememberedUser))
 const loading = ref(false)
 
-function handleSubmit() {
+// 真实模式演示快捷登录：种子账号统一密码，联调演示免输密码
+const demoAccounts = [
+  { key: 'admin', label: '系统管理员' },
+  { key: 'liuyang', label: '财务审核' },
+  { key: 'lina', label: '部门负责人' },
+  { key: 'zhangwei', label: '员工' },
+]
+
+async function quickLogin(key) {
+  if (loading.value) return
+  username.value = key
+  password.value = 'Root@123456'
+  await handleSubmit()
+}
+
+async function handleSubmit() {
   if (loading.value) return
   loading.value = true
   try {
-    login(username.value, password.value, remember.value)
+    const result = await login(username.value, password.value, remember.value)
+    if (!USE_MOCK && result?.token) {
+      applyLogin(result.user, result.token)
+      await Promise.all([syncStats(), syncDocuments()])
+    }
     pushToast('登录成功，欢迎回来')
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
     router.push(redirect)
@@ -48,16 +69,26 @@ function forgotPassword() {
 
       <form class="login-form" @submit.prevent="handleSubmit">
         <div class="field">
-          <label class="label" for="username">用户名（演示账号）</label>
+          <label class="label" for="username">用户名{{ USE_MOCK ? '（演示账号）' : '' }}</label>
           <div class="input-wrap">
             <User :size="16" class="input-icon" />
-            <select id="username" v-model="username" class="login-input login-select">
-              <option value="" disabled>请选择登录账号</option>
-              <option v-for="account in accounts" :key="account.id" :value="account.name">
-                {{ account.label }}
-              </option>
-            </select>
-            <ChevronDown :size="14" class="select-arrow" />
+            <template v-if="USE_MOCK">
+              <select id="username" v-model="username" class="login-input login-select">
+                <option value="" disabled>请选择登录账号</option>
+                <option v-for="account in accounts" :key="account.id" :value="account.name">
+                  {{ account.label }}
+                </option>
+              </select>
+              <ChevronDown :size="14" class="select-arrow" />
+            </template>
+            <input
+              v-else
+              id="username"
+              v-model="username"
+              class="login-input"
+              type="text"
+              placeholder="请输入用户名"
+            />
           </div>
         </div>
 
@@ -90,6 +121,22 @@ function forgotPassword() {
           {{ loading ? '登录中…' : '登 录' }}
         </button>
       </form>
+
+      <div v-if="!USE_MOCK" class="quick-row">
+        <span class="quick-title">演示快捷登录</span>
+        <div class="quick-chips">
+          <button
+            v-for="account in demoAccounts"
+            :key="account.key"
+            class="quick-chip"
+            type="button"
+            :disabled="loading"
+            @click="quickLogin(account.key)"
+          >
+            {{ account.label }}
+          </button>
+        </div>
+      </div>
 
       <p class="login-foot">© 2026 财务风审平台 · 数据安全 · 全程审计</p>
     </div>
@@ -288,5 +335,47 @@ function forgotPassword() {
   line-height: 13px;
   color: #98a2b3;
   text-align: center;
+}
+
+.quick-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-title {
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--text-secondary);
+}
+
+.quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.quick-chip {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--text-primary);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.quick-chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.quick-chip:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 </style>

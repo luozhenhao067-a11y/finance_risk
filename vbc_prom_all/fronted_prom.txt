@@ -1,0 +1,38 @@
+[角色设定]:你是一个资深的前端开发专家,现在需要你协助我完成一个“财务单据智能风险审核系统”的前端页面开发。
+[项目目标]:按照原型图生成前端页面
+[项目背景]:原型图见'D:\资料\三项\财务单据智能风险审核\untitled.pen'文件,
+项目prd见'D:\资料\三项\财务单据智能风险审核\财务单据智能风险审核系统PRD.txt'文件
+[具体要求]:
+1.技术栈要求vue
+2.严格还原原型图里的所有页面
+3.输出必须是完整可运行的Vue项目
+4.单据主表（`document`）字段：
+**主表**
+- `id` / `doc_no` 单据编号（FY20261021-001 格式）
+- `doc_type` 单据类型：费用报销 / 差旅费报销 / 采购付款 / 合同付款 / 借款单
+- `title` 单据标题
+- `applicant_id` 申请人 + `dept_id` 申请部门
+- `project` 费用归属项目
+- `total_amount` 合计金额（系统实时算，与明细联动校验）
+- `status` 状态机：draft → submitted → analyzing → pending_approval → returned / rejected / approved → completed
+- `version` 版本号（退回重提 +1）
+- `current_node` 当前审批节点
+- `submit_time` 提交时间
+
+**明细表（`document_detail`）**
+- `expense_type` 费用类型（交通/住宿/餐饮等）
+- `expense_date` 费用日期
+- `amount` 金额
+- `invoice_no` 发票号
+- `remark` 说明
+
+**关联表**
+- `document_snapshot` 提交时快照（不可变，审批/分析基于快照）
+- `attachment` 附件元数据 + 文件路径（PDF/PNG/JPG）
+- `approval_instance` / `approval_task` / `approval_opinion` 审批实例、任务、意见
+- `risk_analysis` / `risk_item` / `risk_evidence` 风险分析结果、风险项、证据
+- `operation_log` 全量操作审计
+- `report` 报告记录 + 文件路径
+
+字段全映射在原型 03 新建单据屏（基本信息 + 费用明细表）。
+5.输出目录为:D:\资料\三项\财务单据智能风险审核\fronted

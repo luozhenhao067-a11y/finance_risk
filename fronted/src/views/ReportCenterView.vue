@@ -1,14 +1,20 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, FileText, FileSpreadsheet, FileClock, Inbox } from 'lucide-vue-next'
 import { useAppStore } from '../stores/appStore'
 import { formatMoney, riskInfo } from '../utils/format'
 import { pushToast } from '../composables/useToast'
+import { syncReports, syncDocuments } from '../api/realSync'
 
 const router = useRouter()
 const store = useAppStore()
 const { canExportReport } = store
+
+onMounted(() => {
+  syncReports()
+  syncDocuments()
+})
 
 const keyword = ref('')
 const levelFilter = ref('全部等级')

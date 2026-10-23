@@ -79,6 +79,20 @@ export const generateReport = (docId) =>
     () => client.post(`/documents/${docId}/report`)
   )
 
+// 智能问答
+export const askAi = (docId, question) =>
+  call(
+    () => db.askAi(docId, question),
+    () => client.post(`/documents/${docId}/ai-qa`, { question }, { timeout: 60000 })
+  )
+
+// 通知
+export const markNotificationsRead = () =>
+  call(
+    () => db.markAllNotificationsRead(),
+    () => client.put('/notifications/read-all')
+  )
+
 // 系统管理
 export const updateRiskRule = (code, patch) =>
   call(

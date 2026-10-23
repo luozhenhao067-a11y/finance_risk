@@ -1,13 +1,18 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, FileSpreadsheet, History, Inbox } from 'lucide-vue-next'
 import { useAppStore } from '../stores/appStore'
 import { pushToast } from '../composables/useToast'
+import { syncLogs } from '../api/realSync'
 
 const router = useRouter()
 const store = useAppStore()
 const { canViewLogs } = store
+
+onMounted(() => {
+  syncLogs()
+})
 
 const keyword = ref('')
 const actionFilter = ref('全部操作')

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ChevronDown,
@@ -15,6 +15,7 @@ import { useAppStore } from '../stores/appStore'
 import RiskBadge from '../components/RiskBadge.vue'
 import { formatMoney, riskInfo } from '../utils/format'
 import { pushToast } from '../composables/useToast'
+import { syncApprovals, syncDetail } from '../api/realSync'
 
 const router = useRouter()
 const store = useAppStore()
@@ -74,13 +75,20 @@ const chips = ['同意报销', '材料不全，请补充', '金额有误，需�
 function selectDoc(id) {
   selectedId.value = id
   opinion.value = ''
+  syncDetail(id)
 }
+
+onMounted(async () => {
+  await syncApprovals()
+  const list = store.getApprovalQueue()
+  if (list.length) syncDetail(list[0].id)
+})
 
 function chooseChip(text) {
   opinion.value = text
 }
 
-function handleAction(action) {
+async function handleAction(action) {
   if (!selected.value) return
   const doc = selected.value
   if (action === 'reject') {
@@ -97,8 +105,9 @@ function handleAction(action) {
     pushToast('驳回必须填写意见', 'error')
     return
   }
-  store.approveDocument(doc.id, action, opinion.value)
+  await store.approveDocument(doc.id, action, opinion.value)
   opinion.value = ''
+  await syncApprovals()
   const actionText = action === 'approve' ? '已通过' : action === 'return' ? '已退回' : '已驳回'
   pushToast(`${doc.doc_no} ${actionText}`)
 }

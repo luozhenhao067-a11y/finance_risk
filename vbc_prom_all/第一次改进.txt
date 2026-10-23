@@ -1,0 +1,51 @@
+# 角色与背景
+你是资深 FastAPI 后端工程师与 AI 应用专家。
+当前我们有一个《财务单据智能风险审核系统》，后端采用 FastAPI + Uvicorn，已经写好了基础的接口骨架、状态机和风控规则。
+现在我们要进行【第一次修改功能】。目标是在原有的架构基础上，渐进式引入 AI 能力，将系统从“纯规则引擎”升级为“智能风控系统”。
+
+# 工程约束（核心原则）
+1. 绝不能破坏现有接口契约和目录结构。
+2. AI 能力必须具备“优雅降级（Mock 兜底）”机制。如果没有在 .env 中配置大模型 API Key，系统必须返回逼真的 Mock 数据，保证前后端联调和演示不中断。
+3. 所有对外部大模型（如 DeepSeek、通义千问、OpenAI）的调用，统一封装在 `app/services/ai_client.py` 中。
+4. 更新 `requirements.txt` 和 `.env.example`，补充新增的依赖（如 httpx、pdf2image、PyMuPDF 等）和环境变量。
+
+# 本次修改任务（按模块实现）
+
+## 任务一：多模态附件解析与结构化提取 (对应 services/ai_parser.py)
+- 需求：发票、行程单可能是 PDF 或图片（PNG/JPG），需要提取核心字段（发票号、金额、开票日期、销售方）。
+- 实现要求：
+  - 在单据提交后的 `BackgroundTasks` 异步链路中触发。
+  - 增加 `parse_attachment_with_ai(file_path: str)` 函数。
+  - 若配置了 Vision API（如 GPT-4o/通义千问-VL），将图片/PDF转图片后 Base64 编码发送，Prompt 要求返回 JSON 格式。
+  - 返回值必须包含：`fields` (字段名和值)、`page` (页码)、`position` (坐标或位置描述)、`confidence` (置信度 0-100)。
+  - 未配置 API 时，读取文件名，如果包含“发票”则返回固定的 Mock 发票数据；包含“行程单”返回 Mock 行程数据。
+
+## 任务二：复杂风险项的语义判断 (对应 services/risk_engine.py)
+- 需求：升级原有的规则引擎。
+- 实现要求：
+  - 新增语义比对规则：用于判断合同乙方、发票抬头、付款申请单中的公司名称是否一致。例如“北京云启科技”和“云启公司”应判定为一致。
+  - 新增消费异常检测：结合单据金额、报销类型、历史均值和当前城市，调用 LLM 给出“是否异常及原因”，或者用简单的统计阈值（如超过历史均值 1.5 倍）进行 Mock。
+  - 修改 `run_risk_analysis(doc_id)`，在原有的 `if-else` 规则跑完后，补充调用这两个 AI 增强规则，生成对应的 `RiskItem` 记录写入数据库。
+
+## 任务三：智能报告生成与摘要 (对应 services/report_service.py)
+- 需求：原有的风险报告都是生硬的“规则 R-01 触发”，现在需要 AI 生成“人话”。
+- 实现要求：
+  - 在报告生成阶段，把单据信息、总金额、触发的所有风险项列表作为 Prompt 的上下文。
+  - 让大语言模型生成一段 `summary`（不超过 300 字），要求语气专业、客观。
+  - 生成的处理建议（pass / supplement / manual_review / reject_suggest）要基于风险项的逻辑给出解释。例如：“发现金额不一致（差额20元）且打车发票超期，建议【人工复核】，请申请人补充说明。”
+  - 若无 API Key，用代码里的 `if-else` 逻辑拼接这段摘要文本。
+
+## 任务四：智能问答与解释接口 (新增 routers/ai_chat.py)
+- 需求：提供加分项功能，让审批人可以直接问系统问题。
+- 实现要求：
+  - 新增接口 `POST /api/v1/documents/{doc_id}/ai-qa`
+  - 请求体：`{"question": "这张单为什么被标记为高风险？"}`
+  - 逻辑：根据 `doc_id` 查出单据详情、触发的风险项和规则，组装 System Prompt，调用 LLM 生成对话式回答。
+  - 响应结构：返回统一信封，`data` 为 `{"answer": "回答内容", "related_risk_codes": ["R-01"]}`。
+  - 在 `app/api/v1.py` 中注册该路由。
+
+# 交付要求
+1. 输出修改或新增的 Python 文件代码（含文件路径）。
+2. 提供 `app/services/ai_client.py` 的统一封装（需兼容 OpenAI 格式的接口，因为大部分国产大模型都兼容这个格式）。
+3. 提供更新后的 `requirements.txt` 和 `.env.example`。
+4. 大模型的api_key和base_url等信息放在.env文件中,由人工配置

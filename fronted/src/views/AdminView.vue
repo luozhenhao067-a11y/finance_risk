@@ -1,10 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Users, Building2, ShieldCheck, Inbox } from 'lucide-vue-next'
 import { useAppStore } from '../stores/appStore'
 import { riskInfo } from '../utils/format'
 import { pushToast } from '../composables/useToast'
+import { syncRules } from '../api/realSync'
 
 const router = useRouter()
 const store = useAppStore()
@@ -14,6 +15,10 @@ const { canViewAdmin, updateRiskRule } = store
 if (!canViewAdmin()) {
   router.replace('/dashboard')
 }
+
+onMounted(() => {
+  syncRules()
+})
 
 const keyword = ref('')
 

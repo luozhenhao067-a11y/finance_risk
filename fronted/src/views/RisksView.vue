@@ -1,12 +1,17 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, ShieldAlert, ShieldCheck, ShieldX, Inbox, ArrowUpRight } from 'lucide-vue-next'
 import { useAppStore } from '../stores/appStore'
 import { riskInfo, formatMoney } from '../utils/format'
+import { syncRiskItems } from '../api/realSync'
 
 const router = useRouter()
 const store = useAppStore()
+
+onMounted(() => {
+  syncRiskItems()
+})
 
 const keyword = ref('')
 const levelFilter = ref('全部等级')

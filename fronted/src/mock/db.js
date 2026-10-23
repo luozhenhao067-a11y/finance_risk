@@ -24,6 +24,9 @@ function loadState() {
 
 export const state = reactive(loadState())
 
+// 真实后端模式：detail 接口返回的审批链节点名（键为 doc_id）
+if (!state.backendChains) state.backendChains = {}
+
 function persist() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
@@ -117,6 +120,8 @@ export function getRiskEvidences(docId) {
 
 // 审批链（Spec 5.4：基础链 + 金额条件加签）
 export function getFlowChain(doc) {
+  const backend = state.backendChains && state.backendChains[String(doc.id)]
+  if (backend && backend.length) return backend
   const chain = [...FLOW_CONFIG.baseNodes]
   if (Number(doc.total_amount) >= FLOW_CONFIG.extraNode.threshold) {
     chain.splice(2, 0, FLOW_CONFIG.extraNode.node)
@@ -482,6 +487,27 @@ export function markAllNotificationsRead() {
 export function resetDemo() {
   localStorage.removeItem(STORAGE_KEY)
   window.location.reload()
+}
+
+// 真实后端模式：清空本地演示数据，后续由 realSync 灌入后端数据
+export function resetForBackend() {
+  state.documents = []
+  state.details = []
+  state.attachments = []
+  state.parseResults = []
+  state.riskAnalyses = []
+  state.riskItems = []
+  state.riskEvidences = []
+  state.approvalInstances = []
+  state.approvalTasks = []
+  state.approvalOpinions = []
+  state.operationLogs = []
+  state.reports = []
+  state.todos = []
+  state.notifications = []
+  state.stats = { pendingApproval: 0, highRisk: 0, inApproval: 0, completedMonth: 0 }
+  state.riskDistribution = { high: 0, mid: 0, low: 0 }
+  state.backendChains = {}
 }
 
 // ---------------- 单据操作（Spec 5.3 状态机） ----------------
@@ -858,6 +884,55 @@ export function ensureReport(docId) {
   recordLog(docId, '生成报告', `生成风险审核报告 ${report.report_no}`, '系统', '系统')
   persist()
   return report
+}
+
+// ---------------- 智能问答（AI 增强，mock 兜底） ----------------
+
+const QA_LEVEL_TEXT = { high: '高风险', mid: '中风险', low: '低风险', none: '无风险' }
+
+export function askAi(docId, question) {
+  const doc = getDocument(docId)
+  if (!doc) return { answer: '单据不存在。', related_risk_codes: [] }
+  const analysis = getRiskAnalysis(docId)
+  const risks = getRiskItems(docId)
+  const askedCodes = [...(question.toUpperCase().match(/R-\d{2}/g) || [])]
+  const selected = askedCodes.length
+    ? risks.filter((row) => askedCodes.includes(row.rule_code.toUpperCase()))
+    : risks
+
+  if (!analysis) {
+    return {
+      answer:
+        `单据 ${doc.doc_no}《${doc.title}》当前状态为 ${doc.status}，尚未生成风险分析结果，` +
+        '暂时无法回答风险判定相关问题。请等待风险分析完成后再提问。',
+      related_risk_codes: []
+    }
+  }
+  if (!selected.length) {
+    return {
+      answer:
+        `单据 ${doc.doc_no}《${doc.title}》整体风险为` +
+        `${QA_LEVEL_TEXT[analysis.overall_level] || '无风险'}，` +
+        '当前未发现明显风险，建议按常规流程审批。',
+      related_risk_codes: []
+    }
+  }
+
+  const lines = selected.slice(0, 5).map(
+    (row) => `· ${row.rule_code} ${row.title}（${QA_LEVEL_TEXT[row.level] || '中风险'}）：${row.basis}`
+  )
+  const answer = [
+    `单据 ${doc.doc_no}《${doc.title}》整体风险为` +
+      `${QA_LEVEL_TEXT[analysis.overall_level] || '无风险'}，共触发 ${risks.length} 项风险。相关判定如下：`,
+    ...lines,
+    `综合处理建议：${analysis.recommendation_label || '人工复核'}。`
+  ].join('\n')
+
+  recordLog(docId, '智能问答', `提问：${question.slice(0, 100)}`)
+  return {
+    answer,
+    related_risk_codes: selected.slice(0, 5).map((row) => row.rule_code)
+  }
 }
 
 // 风险规则配置（管理员，Spec 4.10）

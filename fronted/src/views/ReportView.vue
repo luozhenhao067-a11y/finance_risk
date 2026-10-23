@@ -1,10 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { History, FileSpreadsheet, Download } from 'lucide-vue-next'
 import { useAppStore } from '../stores/appStore'
 import { formatMoney, riskInfo } from '../utils/format'
 import { pushToast } from '../composables/useToast'
+import { syncDetail } from '../api/realSync'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +16,10 @@ const doc = computed(() => store.getDocument(docId))
 if (doc.value && !store.getReportByDoc(docId)) {
   store.ensureReport(docId)
 }
+
+onMounted(() => {
+  syncDetail(docId)
+})
 
 const report = computed(() => store.getReportByDoc(docId))
 const analysis = computed(() => store.getRiskAnalysis(docId))

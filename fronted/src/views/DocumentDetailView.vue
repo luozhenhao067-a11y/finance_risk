@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -17,13 +17,16 @@ import {
   RefreshCw,
   LoaderCircle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Bot,
+  Send
 } from 'lucide-vue-next'
 import { useAppStore } from '../stores/appStore'
 import RiskBadge from '../components/RiskBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import { formatMoney, riskInfo, riskCountText, statusInfo } from '../utils/format'
 import { pushToast } from '../composables/useToast'
+import { syncDetail } from '../api/realSync'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,11 +44,20 @@ const {
   canExportReport
 } = store
 
-const tabKeys = ['base', 'details', 'attachments', 'risk', 'flow', 'logs']
+const tabKeys = ['base', 'details', 'attachments', 'risk', 'flow', 'logs', 'qa']
 const activeTab = ref(tabKeys.includes(route.query.tab) ? route.query.tab : 'risk')
 const sortDesc = ref(true)
 const selectedPage = ref(1)
 const previewOpen = ref(false)
+
+const qaMessages = ref([])
+const qaInput = ref('')
+const qaLoading = ref(false)
+const qaSuggestions = [
+  '这张单为什么被标记为高风险？',
+  '主要触发了哪些规则？',
+  '给出处理建议'
+]
 
 const doc = computed(() => state.documents.find((item) => item.id === route.params.id))
 const details = computed(() => (doc.value ? store.getDetails(doc.value.id) : []))
@@ -73,7 +85,8 @@ const tabs = computed(() => [
   { key: 'attachments', label: '附件与解析' },
   { key: 'risk', label: '风险分析' },
   { key: 'flow', label: '审批流转' },
-  { key: 'logs', label: '审计日志' }
+  { key: 'logs', label: '审计日志' },
+  { key: 'qa', label: '智能问答' }
 ])
 
 const flowNodes = computed(() => {
@@ -119,7 +132,7 @@ function goBack() {
   router.push('/documents')
 }
 
-function exportReport() {
+async function exportReport() {
   if (!doc.value) return
   if (!canExportReport()) {
     pushToast('仅财务审核人与系统管理员可导出报告', 'error')
@@ -129,91 +142,125 @@ function exportReport() {
     pushToast('草稿尚未提交审批，暂不能生成风险报告', 'info')
     return
   }
-  const report = store.ensureReport(doc.value.id)
+  const report = await store.ensureReport(doc.value.id)
+  await syncDetail(doc.value.id)
   if (report) {
     pushToast(`报告 ${report.report_no} 已生成`)
     router.push(`/reports/${doc.value.id}`)
   }
 }
 
-function withdraw() {
+async function withdraw() {
   if (!doc.value) return
   if (!window.confirm('确定撤回该单据吗？撤回后将进入已退回状态，可修改后重新提交。')) return
-  store.withdrawDocument(doc.value.id)
+  await store.withdrawDocument(doc.value.id)
+  await syncDetail(doc.value.id)
   pushToast('单据已撤回')
 }
 
-function resubmit() {
+async function resubmit() {
   if (!doc.value) return
-  store.resubmitDocument(doc.value.id)
+  await store.resubmitDocument(doc.value.id)
+  await syncDetail(doc.value.id)
   pushToast('单据已重新提交，版本号 +1')
 }
 
-function confirmDone() {
+async function confirmDone() {
   if (!doc.value) return
   if (!window.confirm('确认单据完成归档吗？完成后单据进入终态。')) return
-  store.confirmComplete(doc.value.id)
+  await store.confirmComplete(doc.value.id)
+  await syncDetail(doc.value.id)
   pushToast('单据已完成归档')
 }
 
-function restoreDoc() {
+async function restoreDoc() {
   if (!doc.value) return
   const reason = window.prompt('请输入恢复原因（将写入审计日志）：')
   if (!reason || !reason.trim()) return
-  store.restoreDocument(doc.value.id, reason.trim())
+  await store.restoreDocument(doc.value.id, reason.trim())
+  await syncDetail(doc.value.id)
   pushToast('单据已恢复为草稿')
 }
 
-function rerunRisk() {
+async function rerunRisk() {
   if (!doc.value) return
-  store.rerunAnalysis(doc.value.id)
+  await store.rerunAnalysis(doc.value.id)
+  await syncDetail(doc.value.id)
   pushToast('已触发重新分析')
 }
 
-function approveCurrent() {
+async function approveCurrent() {
   if (!doc.value) return
   const openHigh = sortedRiskItems.value.some((item) => item.level === 'high' && item.status === 'open')
   if (openHigh && !window.confirm('存在未处理的高风险项，确认仍要通过吗？确认内容将写入审批意见。')) return
-  store.approveDocument(doc.value.id, 'approve', '同意，审批通过。')
+  await store.approveDocument(doc.value.id, 'approve', '同意，审批通过。')
+  await syncDetail(doc.value.id)
   pushToast('已通过，流转下一节点')
 }
 
-function returnCurrent() {
+async function returnCurrent() {
   if (!doc.value) return
   const opinion = window.prompt('退回意见（必填）：')
   if (!opinion || !opinion.trim()) {
     pushToast('退回必须填写意见', 'error')
     return
   }
-  store.approveDocument(doc.value.id, 'return', opinion.trim())
+  await store.approveDocument(doc.value.id, 'return', opinion.trim())
+  await syncDetail(doc.value.id)
   pushToast('单据已退回申请人')
 }
 
-function rejectCurrent() {
+async function rejectCurrent() {
   if (!doc.value) return
   const opinion = window.prompt('驳回意见（必填）：')
   if (!opinion || !opinion.trim()) {
     pushToast('驳回必须填写意见', 'error')
     return
   }
-  store.approveDocument(doc.value.id, 'reject', opinion.trim())
+  await store.approveDocument(doc.value.id, 'reject', opinion.trim())
+  await syncDetail(doc.value.id)
   pushToast('单据已驳回')
 }
 
-function handleRisk(item, status) {
+async function handleRisk(item, status) {
   const label = status === 'handled' ? '处理' : '排除'
   const opinion = window.prompt(`${label}意见（必填）：`)
   if (!opinion || !opinion.trim()) {
     pushToast(`${label}意见必填`, 'error')
     return
   }
-  store.handleRiskItem(item.id, status, opinion.trim())
+  await store.handleRiskItem(item.id, status, opinion.trim())
+  await syncDetail(doc.value.id)
   pushToast(`风险项已${label}`)
 }
 
 function toggleSort() {
   sortDesc.value = !sortDesc.value
   pushToast(sortDesc.value ? '已按风险等级从高到低排序' : '已按风险等级从低到高排序', 'info')
+}
+
+async function askQuestion(text) {
+  const question = (text ?? qaInput.value).trim()
+  if (!question || qaLoading.value || !doc.value) return
+  qaInput.value = ''
+  qaMessages.value.push({ role: 'user', content: question })
+  qaLoading.value = true
+  try {
+    const result = await store.askAi(doc.value.id, question)
+    qaMessages.value.push({
+      role: 'assistant',
+      content: result?.answer || '未获取到回答，请稍后重试。',
+      codes: result?.related_risk_codes || []
+    })
+  } catch (error) {
+    qaMessages.value.push({
+      role: 'assistant',
+      content: `问答失败：${error?.message || '服务不可用'}`,
+      codes: []
+    })
+  } finally {
+    qaLoading.value = false
+  }
 }
 
 function openPreview() {
@@ -238,6 +285,10 @@ watch(
     if (tabKeys.includes(tab)) activeTab.value = tab
   }
 )
+
+onMounted(() => {
+  syncDetail(route.params.id)
+})
 </script>
 
 <template>
@@ -654,6 +705,60 @@ watch(
             </tbody>
           </table>
           <div v-if="!logs.length" class="empty-state">暂无操作记录</div>
+        </section>
+      </template>
+
+      <template v-else-if="activeTab === 'qa'">
+        <section class="qa-card card">
+          <div class="qa-head">
+            <Bot :size="18" style="color: var(--primary)" />
+            <h2 class="section-title">智能问答</h2>
+            <span class="muted-sm">AI 结合单据信息与风险分析结果作答，引用规则编号</span>
+          </div>
+          <div class="qa-messages">
+            <div v-if="!qaMessages.length && !qaLoading" class="qa-empty">
+              针对本单据提问，AI 将结合风险项、解析结果与处理建议作答。
+            </div>
+            <div v-for="(msg, index) in qaMessages" :key="index" class="qa-msg" :class="msg.role">
+              <div class="qa-bubble">{{ msg.content }}</div>
+              <div v-if="msg.codes && msg.codes.length" class="qa-codes">
+                <span v-for="code in msg.codes" :key="code" class="risk-rule">{{ code }}</span>
+              </div>
+            </div>
+            <div v-if="qaLoading" class="qa-msg assistant">
+              <div class="qa-bubble typing">
+                <LoaderCircle :size="14" class="spin" />
+                <span>思考中…</span>
+              </div>
+            </div>
+          </div>
+          <div class="qa-suggestions">
+            <button
+              v-for="item in qaSuggestions"
+              :key="item"
+              type="button"
+              class="qa-chip"
+              @click="askQuestion(item)"
+            >
+              {{ item }}
+            </button>
+          </div>
+          <form class="qa-input-row" @submit.prevent="askQuestion()">
+            <input
+              v-model="qaInput"
+              type="text"
+              placeholder="输入问题，例如：为什么标记为高风险？"
+              maxlength="500"
+            />
+            <button
+              class="qa-send"
+              type="submit"
+              :disabled="!qaInput.trim() || qaLoading"
+              aria-label="发送问题"
+            >
+              <Send :size="15" />
+            </button>
+          </form>
         </section>
       </template>
     </div>
@@ -1236,6 +1341,154 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.qa-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.qa-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qa-head .section-title {
+  flex: none;
+}
+
+.qa-messages {
+  min-height: 340px;
+  max-height: 460px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.qa-empty {
+  margin: auto;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 420px;
+  line-height: 22px;
+}
+
+.qa-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 78%;
+}
+
+.qa-msg.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.qa-msg.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.qa-bubble {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.qa-msg.user .qa-bubble {
+  background: var(--primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.qa-msg.assistant .qa-bubble {
+  background: var(--bg);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.qa-bubble.typing {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+}
+
+.qa-codes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.qa-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qa-chip {
+  height: 26px;
+  padding: 4px 12px;
+  border: 1px solid var(--primary-line);
+  border-radius: 13px;
+  background: var(--primary-weak);
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.qa-chip:hover {
+  background: #dbeafe;
+}
+
+.qa-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.qa-input-row input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--text-primary);
+}
+
+.qa-input-row input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.qa-send {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+}
+
+.qa-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .card-head {

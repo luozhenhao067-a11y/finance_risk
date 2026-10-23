@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Plus, FileText, Inbox } from 'lucide-vue-next'
 import { DOC_TYPES } from '../data/seed'
@@ -8,6 +8,7 @@ import RiskBadge from '../components/RiskBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import { formatMoney, statusInfo } from '../utils/format'
 import { pushToast } from '../composables/useToast'
+import { syncDocuments } from '../api/realSync'
 
 const router = useRouter()
 const store = useAppStore()
@@ -80,16 +81,22 @@ function editDoc(doc) {
   router.push(`/documents/${doc.id}`)
 }
 
-function withdrawDoc(doc) {
+async function withdrawDoc(doc) {
   if (!window.confirm('确定撤回该单据吗？撤回后将进入已退回状态，可修改后重新提交。')) return
-  store.withdrawDocument(doc.id)
+  await store.withdrawDocument(doc.id)
+  await syncDocuments()
   pushToast('单据已撤回')
 }
 
-function resubmitDoc(doc) {
-  store.resubmitDocument(doc.id)
+async function resubmitDoc(doc) {
+  await store.resubmitDocument(doc.id)
+  await syncDocuments()
   pushToast('单据已重新提交，版本号 +1')
 }
+
+onMounted(() => {
+  syncDocuments()
+})
 </script>
 
 <template>

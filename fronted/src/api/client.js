@@ -23,5 +23,11 @@ client.interceptors.response.use(
     }
     return body
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('finance-risk-audit-token')
+      if (window.location.pathname !== '/login') window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
 )

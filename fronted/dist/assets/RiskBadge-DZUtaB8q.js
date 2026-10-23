@@ -1,0 +1,1 @@
+import{b as s}from"./format-Bn_Qs4Q1.js";import{o,a as n,t as l,n as r,k as c}from"./index-Cca1li-c.js";const u={__name:"RiskBadge",props:{level:{type:String,default:"none"},white:{type:Boolean,default:!1}},setup(e){const t=e,a=c(()=>s(t.level));return(i,p)=>(o(),n("span",{class:r(["badge",[a.value.className,{"badge-white":e.white}]])},l(a.value.text),3))}};export{u as _};

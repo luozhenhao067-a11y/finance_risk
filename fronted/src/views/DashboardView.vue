@@ -16,6 +16,7 @@ import StatusBadge from '../components/StatusBadge.vue'
 import DonutChart from '../components/DonutChart.vue'
 import { formatMoney } from '../utils/format'
 import { pushToast } from '../composables/useToast'
+import { syncStats, syncDocuments, syncApprovals } from '../api/realSync'
 
 const router = useRouter()
 const store = useAppStore()
@@ -92,6 +93,7 @@ onMounted(() => {
   if (store.state.notifications === undefined) {
     pushToast('演示数据已初始化', 'info')
   }
+  Promise.all([syncStats(), syncDocuments(), syncApprovals()])
 })
 onBeforeUnmount(() => document.removeEventListener('click', handleBellOutside))
 </script>

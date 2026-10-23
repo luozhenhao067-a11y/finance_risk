@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+storage/files/
+storage/exports/
+storage/exports/*.csv

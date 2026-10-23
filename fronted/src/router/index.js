@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
+import { restoreSession, isRealMode } from '../api/realSync'
 
 const routes = [
   {
@@ -84,12 +85,18 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 })
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const store = useAppStore()
-  if (!to.meta.public && !store.state.auth) {
-    return { name: 'login', query: { redirect: to.fullPath } }
+  const hasToken = !!localStorage.getItem('finance-risk-audit-token')
+  // 真实模式：auth 必须同时有 token，防止 mock 残留的 state.auth=true 造成登录页↔首页死循环
+  const authed = isRealMode() ? hasToken && store.state.auth : store.state.auth
+  if (!to.meta.public && !authed) {
+    const restored = await restoreSession()
+    if (!restored) {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
   }
-  if (to.name === 'login' && store.state.auth) {
+  if (to.name === 'login' && authed) {
     return { name: 'dashboard' }
   }
   if (to.meta.roles && !to.meta.roles.includes(store.state.user?.role_code)) {

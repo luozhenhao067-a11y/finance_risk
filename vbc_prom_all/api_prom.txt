@@ -1,0 +1,83 @@
+你是一位资深的前端 + 后端协作架构师，擅长从现有前端代码中逆向整理清晰、可落地的接口契约。
+
+我已经有一个可运行的 Vue3 前端项目（财务单据智能风险审核系统），现在需要你根据前端实际使用的数据结构和业务操作，输出一份**完整的接口契约文档**，用于后续后端开发和对接。
+
+### 一、项目背景
+- 系统名称：财务单据智能风险审核系统
+- 前端技术栈：Vue 3 + Vite + 本地 Mock（数据存在 src/data/seed.js 和 src/store/appStore.js）
+- 核心业务：单据创建 → 提交 → 智能风险分析 → 审批流转 → 生成风险审核报告
+
+### 二、已知核心数据模型（前端已使用）
+
+**主表 document**
+- id, doc_no, doc_type, title, applicant_id, dept_id, project
+- total_amount, status, version, current_node, submit_time
+
+**明细 document_detail**
+- expense_type, expense_date, amount, invoice_no, remark
+
+**关联数据**
+- attachments（附件）
+- snapshots（提交快照）
+- approvalInstances / approvalTasks / approvalOpinions
+- riskAnalyses / riskItems / riskEvidences / parseResults
+- operationLogs
+- reports
+
+单据状态机：draft → pending_approval → completed，并支持 returned、rejected 分支；重新提交 version +1。
+
+### 三、前端已实现的页面与操作（必须覆盖）
+1. 登录
+2. 工作台（KPI、最近单据、待办）
+3. 新建/编辑单据（含明细、附件、保存草稿、提交）
+4. 单据详情（风险分析展示、审批流转、审计日志）
+5. 审批处理（通过、驳回、退回）
+6. 风险审核报告（预览、导出 Excel/PDF）
+7. 单据管理、风险分析、报告中心、审计日志列表页
+
+### 四、请按以下结构输出接口契约
+
+1. **接口设计原则**
+   - 风格（RESTful）
+   - 统一响应格式
+   - 错误码约定
+   - 认证方式（建议）
+
+2. **完整接口清单**
+   按模块分组，每个接口包含：
+   - 方法 + 路径
+   - 简要说明
+   - 请求参数（Query / Path / Body）
+   - 响应数据结构（给出 TypeScript 接口或 JSON 示例）
+   - 可能的错误情况
+
+3. **必须覆盖的核心接口模块**
+   - 认证（登录/退出）
+   - 单据（列表、详情、创建、更新、提交、删除）
+   - 费用明细
+   - 附件上传与管理
+   - 风险分析相关
+   - 审批任务与操作（通过/驳回/退回）
+   - 报告（生成、查询、导出）
+   - 审计日志
+   - 工作台统计数据
+
+4. **数据字典补充**
+   - 所有枚举值（doc_type、status、expense_type 等）给出完整可选值
+   - 状态机流转规则对应的接口约束
+
+5. **输出要求**
+   - 使用中文
+   - Markdown 格式，结构清晰
+   - 响应示例尽量贴近前端实际使用的字段
+   - 接口要足够细，能直接给后端开发使用
+   - 如果前端有本地 mock 逻辑，请尽量还原真实接口应有的行为
+
+6. **参考信息**
+- prd文件地址:D:\资料\三项\财务单据智能风险审核\财务单据智能风险审核系统PRD.txt
+- 前端项目地址:D:\资料\三项\财务单据智能风险审核\fronted(必要时可适当修改前端代码)
+- 原型图地址:D:\资料\三项\财务单据智能风险审核\page_sample.pen
+- spec文档地址:D:\资料\三项\财务单据智能风险审核\财务单据智能风险审核系统Spec.md
+
+
+请开始输出完整的接口契约文档。输出地址:D:\资料\三项\财务单据智能风险审核\

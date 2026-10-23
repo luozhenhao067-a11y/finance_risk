@@ -58,8 +58,9 @@ export const useAppStore = defineStore('app', () => {
     handleRiskItem: api.handleRiskItem,
     rerunAnalysis: api.rerunAnalysis,
     ensureReport: api.generateReport,
+    askAi: api.askAi,
     addAttachments: db.addAttachments,
-    markAllNotificationsRead: db.markAllNotificationsRead,
+    markAllNotificationsRead: api.markNotificationsRead,
     updateRiskRule: api.updateRiskRule,
     resetDemo: db.resetDemo
   }
